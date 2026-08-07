@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAppContext } from "../context/AppContext";
 import { Filter, Download, ClipboardList, Banknote, CheckCircle, Search, UploadCloud, Loader2, X, AlertTriangle, Eye, Check, XSquare, Trash2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import Tesseract from 'tesseract.js';
 
 export default function ReimbursementPage() {
   const { reimbursements, setReimbursements, role } = useAppContext();
@@ -70,63 +69,47 @@ export default function ReimbursementPage() {
     setOcrMessage("");
 
     try {
-      const result = await Tesseract.recognize(file, 'ind+eng');
-      const text = result.data.text;
+      const formData = new FormData();
+      formData.append('file', file);
       
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        body: formData
+      });
       
-      // Ambil nama toko atau baris teks non-angka paling atas
-      let title = "Pengeluaran Baru";
-      for (const line of lines) {
-        if (!/^[\d.,\s]+$/.test(line) && line.length > 3) {
-          title = line;
-          break;
-        }
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal memanggil API OCR Gemini");
+      }
+      
+      let finalCategory = "Inventory";
+      const catLower = (data.category || "").toLowerCase();
+      if (catLower.includes("operasional") || catLower.includes("listrik") || catLower.includes("wifi")) {
+        finalCategory = "Operational";
+      } else if (catLower.includes("maintenance") || catLower.includes("perbaikan")) {
+        finalCategory = "Maintenance";
+      } else if (catLower.includes("marketing") || catLower.includes("promosi")) {
+        finalCategory = "Marketing";
+      } else if (catLower.includes("lainnya")) {
+        finalCategory = "Lainnya";
       }
 
-      let detectedAmount = 0;
-      const keywords = ["total", "grand total", "netto", "tunai", "bayar"];
-      
-      // 1. Coba cari angka di baris yang mengandung keyword
-      for (let i = 0; i < lines.length; i++) {
-        const lineLower = lines[i].toLowerCase();
-        if (keywords.some(kw => lineLower.includes(kw))) {
-           const numMatch = lines[i].match(/[\d.,]+/g);
-           if (numMatch) {
-             const nums = numMatch.map(n => parseInt(n.replace(/[^\d]/g, ''), 10)).filter(n => !isNaN(n));
-             if (nums.length > 0) {
-               detectedAmount = Math.max(...nums);
-               break;
-             }
-           }
-        }
-      }
-
-      // 2. Jika gagal dari keyword, ambil angka nominal terbesar
-      if (detectedAmount === 0 || isNaN(detectedAmount)) {
-        const numberRegex = /[\d.,]+/g;
-        const numbers = text.match(numberRegex);
-        if (numbers) {
-          numbers.forEach(numStr => {
-            const val = parseInt(numStr.replace(/[^\d]/g, ''), 10);
-            if (!isNaN(val) && val > detectedAmount) {
-              detectedAmount = val;
-            }
-          });
-        }
-      }
-
-      // Jangan timpa secara paksa jika user sudah ketik
       setFormData(prev => ({
         ...prev,
-        title: prev.title === "" || prev.title === "Pengeluaran Baru" ? title.substring(0, 50) : prev.title,
-        amount: prev.amount === 0 ? detectedAmount : prev.amount,
+        title: data.title || prev.title,
+        amount: data.amount || prev.amount,
+        category: finalCategory
       }));
 
-      setOcrMessage("OCR berhasil membaca nota. Silakan periksa kembali nominalnya.");
-    } catch (e) {
-      console.error("OCR Error:", e);
-      setOcrMessage("Gagal membaca nota otomatis. Silakan ketik nominal.");
+      if (data.isFallback) {
+        setOcrMessage(data.message || "AI sibuk. Silakan isi nominal secara manual.");
+      } else {
+        setOcrMessage("Berhasil dianalisis oleh Gemini AI!");
+      }
+    } catch (e: any) {
+      console.error("Gemini Error:", e);
+      setOcrMessage(e.message || "Gagal membaca nota otomatis. Silakan ketik nominal.");
     }
 
     setIsScanning(false);
@@ -279,8 +262,8 @@ export default function ReimbursementPage() {
              {isScanning ? (
                 <div className="flex flex-col items-center justify-center space-y-4 py-8">
                   <Loader2 className="animate-spin text-violet-600" size={48} />
-                  <h4 className="font-bold text-slate-900 text-lg">Memproses & Men-scan Nota dengan AI...</h4>
-                  <p className="text-xs font-medium text-slate-500">Mengekstrak teks angka dari gambar instruksi (Tesseract)</p>
+                  <h4 className="font-bold text-slate-900 text-lg">AI Gemini sedang menganalisis nota...</h4>
+                  <p className="text-xs font-medium text-slate-500">Mengekstrak teks angka secara pintar dari gambar instruksi</p>
                 </div>
              ) : (
                <div className="py-2">
