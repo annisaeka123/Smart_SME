@@ -10,41 +10,42 @@ export default function POSPage() {
   const { products, setProducts, transactions, setTransactions, role, inventory, setInventory } = useAppContext();
   const router = useRouter();
 
+  const fetchDependencies = async () => {
+    const { data: invData, error: invError } = await supabase.from("inventory").select("*");
+    if (invError) console.error("Error fetching inventory:", invError.message);
+    if (invData) {
+      setInventory(invData.map((d: any) => ({ ...d, price: d.cost_per_unit })));
+    }
+    
+    const { data: prodData, error: prodError } = await supabase.from("products").select("*, recipes(*)");
+    if (prodError) console.error("Error fetching products:", prodError.message);
+    
+    if (prodData) {
+      setProducts(prodData.map((p: any) => ({
+        ...p,
+        price: p.selling_price || p.price,
+        hpp: p.base_hpp || p.hpp,
+        recipe: p.recipes?.map((r: any) => ({
+          inventoryId: r.inventory_id || r.inventoryId,
+          qty: r.quantity_needed || r.qty
+        })) || []
+      })));
+    }
+  };
+
   useEffect(() => {
     if (role === "Staf") {
       router.push("/reimburse");
       return;
     }
-    
-    const fetchDependencies = async () => {
-      const { data: invData, error: invError } = await supabase.from("inventory").select("*");
-      if (invError) console.error("Error fetching inventory:", invError.message);
-      if (invData) {
-        setInventory(invData.map((d: any) => ({ ...d, price: d.cost_per_unit })));
-      }
-      
-      const { data: prodData, error: prodError } = await supabase.from("products").select("*, recipes(*)");
-      if (prodError) console.error("Error fetching products:", prodError.message);
-      
-      if (prodData) {
-        setProducts(prodData.map((p: any) => ({
-          ...p,
-          price: p.selling_price || p.price,
-          hpp: p.base_hpp || p.hpp,
-          recipe: p.recipes?.map((r: any) => ({
-            inventoryId: r.inventory_id || r.inventoryId,
-            qty: r.quantity_needed || r.qty
-          })) || []
-        })));
-      }
-    };
     fetchDependencies();
   }, [role, router]);
 
   const [cart, setCart] = useState<TransactionItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("Semua");
-  const [showToast, setShowToast] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'cash'|'qris'|'transfer'>('cash');
+  const [receiptData, setReceiptData] = useState<any>(null);
 
   if (role === "Staf") return null;
 
@@ -100,10 +101,9 @@ export default function POSPage() {
     if (cart.length === 0) return;
 
     const newTransaction = {
-      date: new Date().toISOString(),
-      total_price: subtotal,
-      total_profit: totalProfit,
-      status: "Success",
+      total_price: Number(subtotal),
+      total_profit: Number(totalProfit),
+      payment_method: paymentMethod
     };
 
     const { data: trxData, error: trxError } = await supabase.from("transactions").insert(newTransaction).select().single();
@@ -118,41 +118,81 @@ export default function POSPage() {
         ...trxData,
         total: trxData.total_price || trxData.total,
         profit: trxData.total_profit || trxData.profit,
+        date: trxData.created_at || new Date().toISOString()
       };
       setTransactions([formattedTx as any, ...transactions]);
+      setReceiptData({ ...formattedTx, cartItems: [...cart] });
     }
     
-    const updatedInventory = [...inventory];
     for (const cartItem of cart) {
       if (cartItem.product.recipe) {
         for (const recipeItem of cartItem.product.recipe) {
-          const invItemFound = updatedInventory.find(i => i.id === recipeItem.inventoryId);
+          const invItemFound = inventory.find(i => i.id === recipeItem.inventoryId);
           if (invItemFound) {
             let usedQty = recipeItem.qty * cartItem.quantity;
             if (invItemFound.unit === 'kg' || invItemFound.unit === 'Liter') {
               usedQty = usedQty / 1000;
             }
-            invItemFound.stock -= usedQty;
-            const { error: updateError } = await supabase.from("inventory").update({ stock: invItemFound.stock }).eq("id", invItemFound.id);
+            const sisa_stok = invItemFound.stock - usedQty;
+            const { error: updateError } = await supabase.from("inventory").update({ stock: sisa_stok }).eq("id", invItemFound.id);
             if (updateError) console.error("Error updating inventory stock:", updateError.message);
           }
         }
       }
     }
-    setInventory(updatedInventory);
     
+    await fetchDependencies();
     setCart([]);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const closeReceiptModal = () => {
+    setReceiptData(null);
   };
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6 relative animate-in fade-in duration-500">
-      {showToast && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 shadow-xl rounded-xl p-4 flex items-center gap-3 animate-bounce border border-emerald-500">
-          <CheckCircle2 className="text-white" size={24} />
-          <div>
-            <p className="font-bold text-white">Pembayaran Berhasil!</p>
+      {receiptData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeReceiptModal}></div>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm relative z-10 flex flex-col animate-in slide-in-from-bottom-5 duration-300">
+            <div className="border-b border-dashed border-slate-300 p-6 text-center space-y-2">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-emerald-50">
+                <CheckCircle2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Pembayaran Berhasil</h3>
+              <p className="text-slate-500 text-xs font-semibold">{new Date(receiptData.date).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+            
+            <div className="p-6 space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar">
+              {receiptData.cartItems.map((item: any) => (
+                <div key={item.product.id} className="flex justify-between items-start text-sm">
+                  <div>
+                    <p className="font-bold text-slate-800">{item.product.name}</p>
+                    <p className="text-xs text-slate-500">{item.quantity}x @ {formatCurrency(item.product.price)}</p>
+                  </div>
+                  <p className="font-bold text-slate-900">{formatCurrency(item.product.price * item.quantity)}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-slate-50 rounded-b-xl border-t border-slate-200 space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Metode Pembayaran</span>
+                  <span className="font-bold text-slate-900 uppercase">{receiptData.payment_method || 'CASH'}</span>
+                </div>
+                <div className="flex justify-between text-lg pt-2 border-t border-slate-200">
+                  <span className="font-bold text-slate-900">Total Transaksi</span>
+                  <span className="font-bold text-emerald-600">{formatCurrency(receiptData.total_price)}</span>
+                </div>
+              </div>
+              <button 
+                onClick={closeReceiptModal}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-lg shadow-sm transition-colors text-sm"
+              >
+                Tutup Nota
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -193,7 +233,6 @@ export default function POSPage() {
             {filteredProducts.map(p => {
               const stock = getProductStock(p, inventory);
               const isAvailable = stock > 0;
-              const displayStock = stock === 999 ? '∞' : stock;
               const pCategory = (p.category || "").toLowerCase();
               let IconComponent = Package;
               if (pCategory.includes("makanan") || pCategory.includes("food") || pCategory.includes("snack")) {
@@ -208,23 +247,26 @@ export default function POSPage() {
                 onClick={() => addToCart(p)}
                 className={`bg-white border rounded-xl p-4 cursor-pointer transition-all ${
                   isAvailable
-                  ? "border-slate-200 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 group" 
-                  : "border-slate-200 opacity-50 cursor-not-allowed"
+                  ? "border-slate-200 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 group flex flex-col" 
+                  : "border-slate-200 opacity-50 cursor-not-allowed flex flex-col"
                 }`}
               >
                 <div className="aspect-square bg-slate-50 rounded-lg flex items-center justify-center mb-4 text-slate-400 group-hover:text-indigo-600 transition-colors border border-slate-100 group-hover:bg-indigo-50">
                   <IconComponent size={32} />
                 </div>
-                <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{p.name}</h3>
-                <p className="text-slate-600 font-bold text-sm mt-1">{formatCurrency(p.price)}</p>
-                <div className="flex items-center justify-between mt-4">
-                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${stock < 10 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                    Stok: {displayStock}
-                  </span>
-                  {isAvailable && (
+                <h3 className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">{p.name}</h3>
+                
+                <div className="mt-auto pt-3 flex items-center justify-between">
+                  <p className="text-slate-600 font-bold text-sm">{formatCurrency(p.price)}</p>
+                  
+                  {isAvailable ? (
                     <button className="bg-slate-100 text-slate-600 p-1.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-slate-200 group-hover:border-indigo-600 shadow-sm">
                       <Plus size={14} />
                     </button>
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200">
+                      Habis
+                    </span>
                   )}
                 </div>
               </div>
@@ -290,7 +332,7 @@ export default function POSPage() {
         </div>
 
         <div className="p-5 border-t border-slate-200 space-y-4 bg-slate-50">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-600 font-medium">Subtotal Omzet</span>
               <span className="font-bold text-slate-900 text-lg">{formatCurrency(subtotal)}</span>
@@ -298,6 +340,25 @@ export default function POSPage() {
             <div className="flex items-center justify-between text-xs pt-3 border-t border-dashed border-slate-300">
               <span className="text-emerald-600 font-semibold">Estimasi Margin Profit</span>
               <span className="font-bold text-emerald-600">+{formatCurrency(totalProfit)}</span>
+            </div>
+            
+            <div className="pt-3">
+              <span className="block text-xs font-semibold text-slate-500 uppercase mb-2">Metode Pembayaran</span>
+              <div className="grid grid-cols-3 gap-2">
+                {['cash', 'qris', 'transfer'].map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => setPaymentMethod(method as any)}
+                    className={`text-[11px] font-bold py-2 rounded-md transition-all uppercase border ${
+                      paymentMethod === method 
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           
