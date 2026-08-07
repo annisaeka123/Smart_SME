@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAppContext, Product, TransactionItem } from "../context/AppContext";
+import { useAppContext, Product, TransactionItem, getProductStock } from "../context/AppContext";
 import { Search, Plus, Minus, ShoppingCart, Coffee, Box, Trash2, CheckCircle2 } from "lucide-react";
 
 export default function POSPage() {
-  const { products, setProducts, transactions, setTransactions, role } = useAppContext();
+  const { products, setProducts, transactions, setTransactions, role, inventory, setInventory } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,12 +29,13 @@ export default function POSPage() {
   });
 
   const addToCart = (product: Product) => {
-    if (product.stock <= 0) return;
+    const stock = getProductStock(product, inventory);
+    if (stock <= 0) return;
     
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
-        if (existing.quantity >= product.stock) return prev;
+        if (existing.quantity >= stock) return prev;
         return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
       return [...prev, { product, quantity: 1 }];
@@ -45,8 +46,9 @@ export default function POSPage() {
     setCart(prev => {
       return prev.map(item => {
         if (item.product.id === productId) {
+          const stock = getProductStock(item.product, inventory);
           const newQty = item.quantity + delta;
-          if (newQty > item.product.stock) return item;
+          if (newQty > stock) return item;
           if (newQty <= 0) return item;
           return { ...item, quantity: newQty };
         }
@@ -80,14 +82,22 @@ export default function POSPage() {
 
     setTransactions([newTransaction, ...transactions]);
     
-    const updatedProducts = products.map(p => {
-      const cartItem = cart.find(c => c.product.id === p.id);
-      if (cartItem) {
-        return { ...p, stock: p.stock - cartItem.quantity };
+    const updatedInventory = [...inventory];
+    cart.forEach(cartItem => {
+      if (cartItem.product.recipe) {
+        cartItem.product.recipe.forEach(recipeItem => {
+          const invItemFound = updatedInventory.find(i => i.id === recipeItem.inventoryId);
+          if (invItemFound) {
+            let usedQty = recipeItem.qty * cartItem.quantity;
+            if (invItemFound.unit === 'kg' || invItemFound.unit === 'Liter') {
+              usedQty = usedQty / 1000;
+            }
+            invItemFound.stock -= usedQty;
+          }
+        });
       }
-      return p;
     });
-    setProducts(updatedProducts);
+    setInventory(updatedInventory);
     
     setCart([]);
     setShowToast(true);
@@ -138,12 +148,17 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map(p => (
+            {filteredProducts.map(p => {
+              const stock = getProductStock(p, inventory);
+              const isAvailable = stock > 0;
+              const displayStock = stock === 999 ? '∞' : stock;
+              
+              return (
               <div 
                 key={p.id} 
                 onClick={() => addToCart(p)}
                 className={`bg-white border rounded-xl p-4 cursor-pointer transition-all ${
-                  p.stock > 0 
+                  isAvailable
                   ? "border-slate-200 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 group" 
                   : "border-slate-200 opacity-50 cursor-not-allowed"
                 }`}
@@ -154,17 +169,18 @@ export default function POSPage() {
                 <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{p.name}</h3>
                 <p className="text-slate-600 font-bold text-sm mt-1">{formatCurrency(p.price)}</p>
                 <div className="flex items-center justify-between mt-4">
-                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${p.stock < 10 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                    Stok: {p.stock}
+                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${stock < 10 ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                    Stok: {displayStock}
                   </span>
-                  {p.stock > 0 && (
+                  {isAvailable && (
                     <button className="bg-slate-100 text-slate-600 p-1.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors border border-slate-200 group-hover:border-indigo-600 shadow-sm">
                       <Plus size={14} />
                     </button>
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
             {filteredProducts.length === 0 && (
               <div className="col-span-full py-20 text-center text-slate-400 text-sm font-medium">
                 Tidak ada produk ditemukan.
@@ -213,7 +229,7 @@ export default function POSPage() {
                   <span className="w-6 text-center text-xs font-bold text-slate-900">{item.quantity}</span>
                   <button 
                     onClick={() => updateQuantity(item.product.id, 1)}
-                    disabled={item.quantity >= item.product.stock}
+                    disabled={item.quantity >= getProductStock(item.product, inventory)}
                     className="p-1 hover:bg-white rounded cursor-pointer text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm bg-slate-100 border border-transparent hover:border-slate-200"
                   >
                     <Plus size={14} />

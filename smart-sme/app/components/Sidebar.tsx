@@ -3,13 +3,14 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut } from "lucide-react";
+import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/pos", label: "POS Kasir", icon: Receipt },
   { href: "/products", label: "Master Produk", icon: BarChart2 },
+  { href: "/inventory", label: "Bahan Baku", icon: Package },
   { href: "/reimburse", label: "Reimbursements", icon: FolderKanban },
 ];
 

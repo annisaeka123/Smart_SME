@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAppContext, Product } from "../context/AppContext";
+import { useAppContext, Product, getProductStock } from "../context/AppContext";
 import { Plus, Search, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
 
 export default function ProductsPage() {
-  const { products, setProducts, role } = useAppContext();
+  const { products, setProducts, role, inventory } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
@@ -24,8 +24,24 @@ export default function ProductsPage() {
     category: "",
     hpp: 0,
     price: 0,
-    stock: 0,
   });
+
+  const [ingredients, setIngredients] = useState([{ id: 1, inventoryId: "", qty: 0 }]);
+
+  useEffect(() => {
+    let sum = 0;
+    ingredients.forEach(ing => {
+      const item = inventory.find(i => i.id === ing.inventoryId);
+      if (item) {
+        let costPerBase = item.price;
+        if (item.unit === 'kg' || item.unit === 'Liter') {
+          costPerBase = item.price / 1000;
+        }
+        sum += (Number(ing.qty) || 0) * costPerBase;
+      }
+    });
+    setFormData(prev => ({ ...prev, hpp: sum }));
+  }, [ingredients, inventory]);
 
   if (role !== "Owner") return null;
 
@@ -40,12 +56,18 @@ export default function ProductsPage() {
       category: formData.category || "General",
       hpp: Number(formData.hpp),
       price: Number(formData.price),
-      stock: Number(formData.stock),
       icon: "Box"
     };
+
+    newProduct.recipe = ingredients.map(ing => ({
+      inventoryId: ing.inventoryId,
+      qty: Number(ing.qty)
+    })).filter(ing => ing.inventoryId && ing.qty > 0);
+
     setProducts([...products, newProduct]);
     setIsModalOpen(false);
-    setFormData({ name: "", category: "", hpp: 0, price: 0, stock: 0 });
+    setFormData({ name: "", category: "", hpp: 0, price: 0 });
+    setIngredients([{ id: Date.now(), inventoryId: "", qty: 0 }]);
   };
 
   const handleDelete = (id: string) => {
@@ -94,7 +116,6 @@ export default function ProductsPage() {
                 <th className="py-4 px-6 font-semibold">HPP</th>
                 <th className="py-4 px-6 font-semibold">Harga Jual</th>
                 <th className="py-4 px-6 font-semibold">Margin</th>
-                <th className="py-4 px-6 font-semibold">Stok</th>
                 <th className="py-4 px-6 text-right font-semibold">Actions</th>
               </tr>
             </thead>
@@ -102,7 +123,6 @@ export default function ProductsPage() {
               {filteredProducts.map((p) => {
                 const pMarginRp = p.price - p.hpp;
                 const pMarginPct = p.hpp > 0 ? (pMarginRp / p.hpp) * 100 : 0;
-                const stockIsLow = p.stock < 10;
                 
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
@@ -128,16 +148,6 @@ export default function ProductsPage() {
                           : 'text-slate-500'
                       }`}>
                         {pMarginPct.toFixed(0)}%
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-bold text-sm ${stockIsLow ? 'text-rose-500' : 'text-slate-700'}`}>{p.stock} units</span>
-                        {stockIsLow && (
-                          <span className="flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full">
-                            <AlertTriangle size={12} /> Low
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -184,13 +194,89 @@ export default function ProductsPage() {
                     value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Cth: Kopi Arabica" />
                 </div>
                 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">HPP / Modal</label>
-                  <input type="number" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900"
-                    value={formData.hpp || ''} onChange={(e) => setFormData({...formData, hpp: Number(e.target.value)})} placeholder="0" />
+                <div className="col-span-2 space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Komposisi / Resep Bahan Baku</label>
+                    <div className="text-sm font-bold text-indigo-600">Total HPP: {formatCurrency(formData.hpp)}</div>
+                  </div>
+                    
+                    {ingredients.map((ing, index) => {
+                      const selectedItem = inventory.find(i => i.id === ing.inventoryId);
+                      let baseUnit = "-";
+                      let subtotal = 0;
+                      if (selectedItem) {
+                        baseUnit = selectedItem.unit;
+                        let costPerBase = selectedItem.price;
+                        if (selectedItem.unit === 'kg') {
+                          baseUnit = 'gram';
+                          costPerBase = selectedItem.price / 1000;
+                        } else if (selectedItem.unit === 'Liter') {
+                          baseUnit = 'ml';
+                          costPerBase = selectedItem.price / 1000;
+                        }
+                        subtotal = (Number(ing.qty) || 0) * costPerBase;
+                      }
+
+                      return (
+                        <div key={ing.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                          <select
+                            className="flex-1 min-w-[120px] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900"
+                            value={ing.inventoryId}
+                            onChange={(e) => {
+                              const newIngredients = [...ingredients];
+                              newIngredients[index].inventoryId = e.target.value;
+                              setIngredients(newIngredients);
+                            }}
+                          >
+                            <option value="">Pilih Bahan...</option>
+                            {inventory.map(inv => (
+                              <option key={inv.id} value={inv.id}>{inv.name}</option>
+                            ))}
+                          </select>
+                          
+                          <div className="flex items-center gap-2 w-32 sm:w-auto">
+                            <input 
+                              type="number" 
+                              placeholder="Takaran" 
+                              className="w-20 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900 text-right"
+                              value={ing.qty || ''}
+                              onChange={(e) => {
+                                const newIngredients = [...ingredients];
+                                newIngredients[index].qty = Number(e.target.value);
+                                setIngredients(newIngredients);
+                              }}
+                            />
+                            <span className="text-xs font-semibold text-slate-500 w-8">{baseUnit}</span>
+                          </div>
+
+                          <div className="w-24 text-right flex-shrink-0">
+                            <span className="text-sm font-semibold text-slate-700">{formatCurrency(subtotal)}</span>
+                          </div>
+                          
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newIngredients = ingredients.filter((_, i) => i !== index);
+                              setIngredients(newIngredients);
+                            }}
+                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent flex-shrink-0"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                  <button 
+                    type="button"
+                    onClick={() => setIngredients([...ingredients, { id: Date.now(), inventoryId: "", qty: 0 }])}
+                    className="mt-2 text-sm font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-700 transition-colors"
+                  >
+                    <Plus size={16} /> Tambah Bahan
+                  </button>
                 </div>
                 
-                <div>
+                <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Harga Jual</label>
                   <input type="number" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900"
                     value={formData.price || ''} onChange={(e) => setFormData({...formData, price: Number(e.target.value)})} placeholder="0" />
@@ -198,19 +284,26 @@ export default function ProductsPage() {
 
                 <div className="col-span-2 my-1">
                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
-                     <span className="text-sm font-semibold text-slate-600">Estimasi Untung per Porsi:</span>
+                     <div>
+                       <span className="text-sm font-semibold text-slate-700 block">Margin Profit:</span>
+                       <span className="text-[11px] text-slate-500 font-medium">Harga Jual - Total HPP</span>
+                     </div>
                      <div className="text-right">
-                       <p className={`text-lg font-bold ${marginRp > 0 ? 'text-emerald-600' : marginRp < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                         {formatCurrency(marginRp)}
+                       <p className={`text-lg font-bold flex items-center justify-end gap-2 ${marginRp > 0 ? 'text-emerald-500' : marginRp < 0 ? 'text-rose-500' : 'text-slate-900'}`}>
+                         <span>{formatCurrency(marginRp)}</span>
+                         {marginPct > 0 && (
+                           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold">
+                             {marginPct.toFixed(0)}%
+                           </span>
+                         )}
+                         {marginPct <= 0 && formData.hpp > 0 && (
+                           <span className="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 font-bold">
+                             {marginPct.toFixed(0)}%
+                           </span>
+                         )}
                        </p>
                      </div>
                    </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Stok Awal</label>
-                  <input type="number" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all text-slate-900"
-                    value={formData.stock || ''} onChange={(e) => setFormData({...formData, stock: Number(e.target.value)})} placeholder="0" />
                 </div>
               </div>
             </div>
