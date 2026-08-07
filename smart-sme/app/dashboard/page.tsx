@@ -4,17 +4,52 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "../context/AppContext";
 import { TrendingUp, TrendingDown, Banknote, Landmark, Receipt, Wallet, Search, Plus, MoreVertical } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export default function Dashboard() {
-  const { totalOmzet, totalProfit, totalPengeluaran, netProfit, products, role } = useAppContext();
+  const { role } = useAppContext();
   const router = useRouter();
+
+  const [totalOmzet, setTotalOmzet] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [totalPengeluaran, setTotalPengeluaran] = useState(0);
+  const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
     if (role !== "Owner") {
       if (role === "Kasir") router.push("/pos");
       if (role === "Staf") router.push("/reimburse");
+      return;
     }
+    
+    const fetchDashboardData = async () => {
+      const { data: txData, error: txError } = await supabase.from("transactions").select("total_price, total_profit");
+      if (txError) console.error("Error fetching transactions:", txError.message);
+      
+      if (txData) {
+        setTotalOmzet(txData.reduce((acc: number, curr: any) => acc + (curr.total_price || 0), 0));
+        setTotalProfit(txData.reduce((acc: number, curr: any) => acc + (curr.total_profit || 0), 0));
+      }
+      
+      const { data: expData, error: expError } = await supabase.from("expenses").select("amount").eq("status", "Approved");
+      if (expError) console.error("Error fetching expenses:", expError.message);
+      
+      if (expData) {
+        setTotalPengeluaran(expData.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0));
+      }
+      
+      const { data: prodData, error: prodError } = await supabase.from("products").select("*");
+      if (prodError) console.error("Error fetching products:", prodError.message);
+      
+      if (prodData) {
+        setProducts(prodData);
+      }
+    };
+    
+    fetchDashboardData();
   }, [role, router]);
+
+  const netProfit = totalProfit - totalPengeluaran;
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -115,7 +150,7 @@ export default function Dashboard() {
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col pt-6 mt-8">
         <div className="px-8 pb-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Master Produk</h3>
+            <h3 className="text-xl font-bold text-slate-900">Daftar Produk</h3>
             <p className="text-sm text-slate-500 font-medium mt-1">Manage your inventory and pricing</p>
           </div>
           <div className="flex items-center gap-4">
@@ -172,7 +207,7 @@ export default function Dashboard() {
                       <span className="font-bold text-emerald-500 text-sm">{pMarginPct.toFixed(0)}%</span>
                     </td>
                     <td className="py-4 px-6">
-                      <span className={`font-bold text-sm ${p.stock < 10 ? 'text-rose-500' : 'text-slate-600'}`}>{p.stock} units</span>
+                      <span className={`font-bold text-sm text-slate-600`}>Manage mapped</span>
                     </td>
                     <td className="py-4 px-8 text-right">
                       <button className="text-slate-400 hover:text-slate-700 transition-colors p-2">
