@@ -4,13 +4,25 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "../context/AppContext";
 import { Filter, Download, ClipboardList, Banknote, CheckCircle, Search, UploadCloud, Loader2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export default function ReimbursementPage() {
   const { reimbursements, setReimbursements, role } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (role === "Kasir") router.push("/pos");
+    if (role === "Kasir") {
+      router.push("/pos");
+      return;
+    }
+    
+    const fetchExpenses = async () => {
+      const { data } = await supabase.from("expenses").select("*");
+      if (data) {
+        setReimbursements(data as any); 
+      }
+    };
+    fetchExpenses();
   }, [role, router]);
 
   const [isScanning, setIsScanning] = useState(false);
@@ -34,16 +46,21 @@ export default function ReimbursementPage() {
 
   const processFile = (file: File) => {
     setIsScanning(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       const newReimburse = {
-        id: `RMB-0${reimbursements.length + 1}`,
         date: new Date().toISOString(),
         thumbnail: "🧾",
         title: "Emergency Milk Restock",
         amount: 150000,
-        status: "Pending" as const
+        status: "Pending"
       };
-      setReimbursements([newReimburse, ...reimbursements]);
+      
+      const { data, error } = await supabase.from("expenses").insert(newReimburse).select().single();
+      
+      if (data && !error) {
+        setReimbursements([data as any, ...reimbursements]);
+      }
+      
       setIsScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }, 1500);
@@ -209,8 +226,11 @@ export default function ReimbursementPage() {
                       {role === 'Owner' && (
                         <div className="flex justify-end gap-2">
                            <button 
-                             onClick={() => {
-                               setReimbursements(prev => prev.map(item => item.id === r.id ? { ...item, status: 'Approved' } : item));
+                             onClick={async () => {
+                               const { error } = await supabase.from("expenses").update({ status: 'Approved' }).eq('id', r.id);
+                               if (!error) {
+                                  setReimbursements(prev => prev.map(item => item.id === r.id ? { ...item, status: 'Approved' } : item));
+                               }
                              }}
                              className="text-xs font-bold bg-white border border-slate-200 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
                            >Approve</button>

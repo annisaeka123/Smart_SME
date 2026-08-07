@@ -4,17 +4,42 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext, Product, getProductStock } from "../context/AppContext";
 import { Plus, Search, Edit2, Trash2, X, AlertTriangle } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export default function ProductsPage() {
-  const { products, setProducts, role, inventory } = useAppContext();
+  const { products, setProducts, role, inventory, setInventory } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
     if (role !== "Owner") {
       if (role === "Kasir") router.push("/pos");
       if (role === "Staf") router.push("/reimburse");
+      return;
     }
+    fetchData();
   }, [role, router]);
+
+  const fetchData = async () => {
+    const { data: invData } = await supabase.from("inventory").select("*");
+    if (invData) {
+      setInventory(invData.map((d: any) => ({ ...d, price: d.cost_per_unit })));
+    }
+
+    const { data: prodData } = await supabase
+      .from("products")
+      .select("*, recipes(*)");
+    
+    if (prodData) {
+      const mappedProducts = prodData.map((p: any) => ({
+        ...p,
+        recipe: p.recipes?.map((r: any) => ({
+          inventoryId: r.inventory_id || r.inventoryId,
+          qty: r.qty
+        })) || []
+      }));
+      setProducts(mappedProducts);
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,25 +74,47 @@ export default function ProductsPage() {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
   };
 
-  const handleSave = () => {
-    const newProduct: Product = {
-      id: `P${Math.floor(Math.random() * 1000)}`,
+  const handleSave = async () => {
+    const mappedRecipe = ingredients.map(ing => ({
+      inventoryId: ing.inventoryId,
+      qty: Number(ing.qty)
+    })).filter(ing => ing.inventoryId && ing.qty > 0);
+
+    const { data: productData, error: productError } = await supabase.from("products").insert({
       name: formData.name,
       category: formData.category || "General",
       hpp: Number(formData.hpp),
       price: Number(formData.price),
       icon: "Box"
-    };
+    }).select().single();
 
-    newProduct.recipe = ingredients.map(ing => ({
-      inventoryId: ing.inventoryId,
-      qty: Number(ing.qty)
-    })).filter(ing => ing.inventoryId && ing.qty > 0);
+    if (productError) {
+      console.error("Error inserting product:", productError.message);
+      alert("Gagal menyimpan produk: " + productError.message);
+      return;
+    }
 
-    setProducts([...products, newProduct]);
-    setIsModalOpen(false);
-    setFormData({ name: "", category: "", hpp: 0, price: 0 });
-    setIngredients([{ id: Date.now(), inventoryId: "", qty: 0 }]);
+    if (productData) {
+      if (mappedRecipe.length > 0) {
+        const recipeInserts = mappedRecipe.map(r => ({
+          product_id: productData.id,
+          inventory_id: r.inventoryId,
+          qty: r.qty
+        }));
+        const { error: recipeError } = await supabase.from("recipes").insert(recipeInserts);
+        if (recipeError) console.error("Error inserting recipe:", recipeError.message);
+      }
+      
+      const completeProduct = {
+        ...productData,
+        recipe: mappedRecipe
+      };
+      
+      setProducts([...products, completeProduct]);
+      setIsModalOpen(false);
+      setFormData({ name: "", category: "", hpp: 0, price: 0 });
+      setIngredients([{ id: Date.now(), inventoryId: "", qty: 0 }]);
+    }
   };
 
   const handleDelete = (id: string) => {

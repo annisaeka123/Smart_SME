@@ -4,13 +4,39 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext, Product, TransactionItem, getProductStock } from "../context/AppContext";
 import { Search, Plus, Minus, ShoppingCart, Coffee, Box, Trash2, CheckCircle2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export default function POSPage() {
   const { products, setProducts, transactions, setTransactions, role, inventory, setInventory } = useAppContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (role === "Staf") router.push("/reimburse");
+    if (role === "Staf") {
+      router.push("/reimburse");
+      return;
+    }
+    
+    const fetchDependencies = async () => {
+      const { data: invData, error: invError } = await supabase.from("inventory").select("*");
+      if (invError) console.error("Error fetching inventory:", invError.message);
+      if (invData) {
+        setInventory(invData.map((d: any) => ({ ...d, price: d.cost_per_unit })));
+      }
+      
+      const { data: prodData, error: prodError } = await supabase.from("products").select("*, recipes(*)");
+      if (prodError) console.error("Error fetching products:", prodError.message);
+      
+      if (prodData) {
+        setProducts(prodData.map((p: any) => ({
+          ...p,
+          recipe: p.recipes?.map((r: any) => ({
+            inventoryId: r.inventory_id || r.inventoryId,
+            qty: r.qty
+          })) || []
+        })));
+      }
+    };
+    fetchDependencies();
   }, [role, router]);
 
   const [cart, setCart] = useState<TransactionItem[]>([]);
@@ -68,24 +94,36 @@ export default function POSPage() {
   const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
   const totalProfit = cart.reduce((acc, item) => acc + ((item.product.price - item.product.hpp) * item.quantity), 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
 
     const newTransaction = {
-      id: `TRX-${Math.floor(Math.random() * 10000)}`,
       date: new Date().toISOString(),
-      total: subtotal,
-      profit: totalProfit,
-      status: "Success" as const,
-      items: [...cart],
+      total_price: subtotal,
+      total_profit: totalProfit,
+      status: "Success",
     };
 
-    setTransactions([newTransaction, ...transactions]);
+    const { data: trxData, error: trxError } = await supabase.from("transactions").insert(newTransaction).select().single();
+    if (trxError) {
+      console.error("Error inserting transaction:", trxError.message);
+      alert("Error: " + trxError.message);
+      return;
+    }
+
+    if (trxData) {
+      const formattedTx = {
+        ...trxData,
+        total: trxData.total_price || trxData.total,
+        profit: trxData.total_profit || trxData.profit,
+      };
+      setTransactions([formattedTx as any, ...transactions]);
+    }
     
     const updatedInventory = [...inventory];
-    cart.forEach(cartItem => {
+    for (const cartItem of cart) {
       if (cartItem.product.recipe) {
-        cartItem.product.recipe.forEach(recipeItem => {
+        for (const recipeItem of cartItem.product.recipe) {
           const invItemFound = updatedInventory.find(i => i.id === recipeItem.inventoryId);
           if (invItemFound) {
             let usedQty = recipeItem.qty * cartItem.quantity;
@@ -93,10 +131,12 @@ export default function POSPage() {
               usedQty = usedQty / 1000;
             }
             invItemFound.stock -= usedQty;
+            const { error: updateError } = await supabase.from("inventory").update({ stock: invItemFound.stock }).eq("id", invItemFound.id);
+            if (updateError) console.error("Error updating inventory stock:", updateError.message);
           }
-        });
+        }
       }
-    });
+    }
     setInventory(updatedInventory);
     
     setCart([]);
