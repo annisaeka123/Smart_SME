@@ -11,7 +11,7 @@ export default function ReimbursementPage() {
   const router = useRouter();
 
   const fetchExpenses = async () => {
-    const { data } = await supabase.from("expenses").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("expenses").select("*").eq("type", "reimbursement").order("created_at", { ascending: false });
     if (data) {
       setReimbursements(data as any); 
     }
@@ -44,6 +44,8 @@ export default function ReimbursementPage() {
   // Action Modals State
   const [showReceiptModal, setShowReceiptModal] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+  const [actionConfirm, setActionConfirm] = useState<{ id: string, type: 'approved' | 'rejected', title: string, amount: number, staff: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [ocrMessage, setOcrMessage] = useState("");
 
   if (role === "Kasir") return null;
@@ -117,13 +119,7 @@ export default function ReimbursementPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDirectSubmit = () => {
-    setUploadedFile(null);
-    setPreviewUrl("");
-    setOcrMessage("");
-    setFormData({ title: "", amount: 0, category: "Inventory", notes: "" });
-    setShowFormModal(true);
-  };
+
 
   const submitExpense = async () => {
     if (!formData.title || formData.amount <= 0) return;
@@ -155,7 +151,8 @@ export default function ReimbursementPage() {
         category: formData.category,
         notes: formData.notes,
         receipt_url,
-        status: role === 'Owner' ? 'approved' : 'pending'
+        status: 'pending',
+        type: 'reimbursement' // Menandakan bahwa ini adalah reimbursement staf
       };
       
       const { error } = await supabase.from("expenses").insert(payload);
@@ -176,11 +173,18 @@ export default function ReimbursementPage() {
     setIsSubmitting(false);
   };
 
-  const handleUpdateStatus = async (id: string, status: 'approved' | 'rejected') => {
+  const handleUpdateStatus = async () => {
+    if (!actionConfirm) return;
     try {
-      const { error } = await supabase.from("expenses").update({ status }).eq("id", id);
+      const { error } = await supabase.from("expenses").update({ 
+        status: actionConfirm.type,
+        notes: actionConfirm.type === 'rejected' && rejectReason ? `Ditolak: ${rejectReason}` : undefined
+      }).eq("id", actionConfirm.id);
+      
       if (error) throw error;
       await fetchExpenses();
+      setActionConfirm(null);
+      setRejectReason("");
     } catch (e: any) {
       alert("Error updating status: " + e.message);
     }
@@ -203,18 +207,11 @@ export default function ReimbursementPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
-            {role === 'Owner' ? 'Reimbursement & Expenses' : 'Submit Reimbursement'}
+            Pengajuan Reimbursement
           </h2>
           <p className="text-slate-500 mt-1.5 text-sm font-medium">
-            {role === 'Owner' ? 'Review pengajuan dana dan catat langsung pengeluaran toko.' : 'Gunakan AI untuk scan bukti nota pembayaran Anda.'}
+            {role === 'Owner' ? 'Review dan kelola pengajuan klaim dana staf (Pending Approval).' : 'Gunakan AI untuk scan bukti nota pembayaran Anda untuk pengajuan (Pending).'}
           </p>
-        </div>
-        <div className="flex gap-3">
-          {role === 'Owner' && (
-             <button onClick={handleDirectSubmit} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm text-sm transition-colors flex items-center gap-2">
-               + Catat Pengeluaran
-             </button>
-          )}
         </div>
       </div>
 
@@ -251,41 +248,42 @@ export default function ReimbursementPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upload Card for Staff OR Owner direct scan */}
-        <div className="lg:col-span-1">
-          <div 
-            className={`bg-white h-full p-8 rounded-3xl border-2 border-dashed ${dragActive ? 'border-violet-500 bg-violet-50/50' : 'border-slate-200'} transition-all text-center flex flex-col justify-center items-center shadow-sm relative overflow-hidden`}
-            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => { e.preventDefault(); setDragActive(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); }}
-          >
-             {isScanning ? (
-                <div className="flex flex-col items-center justify-center space-y-4 py-8">
-                  <Loader2 className="animate-spin text-violet-600" size={48} />
-                  <h4 className="font-bold text-slate-900 text-lg">AI Gemini sedang menganalisis nota...</h4>
-                  <p className="text-xs font-medium text-slate-500">Mengekstrak teks angka secara pintar dari gambar instruksi</p>
-                </div>
-             ) : (
-               <div className="py-2">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 mx-auto mb-4 shadow-sm border border-slate-100">
-                    <UploadCloud size={28} />
+        {role === 'Staf' && (
+          <div className="lg:col-span-1">
+            <div 
+              className={`bg-white h-full p-8 rounded-3xl border-2 border-dashed ${dragActive ? 'border-violet-500 bg-violet-50/50' : 'border-slate-200'} transition-all text-center flex flex-col justify-center items-center shadow-sm relative overflow-hidden`}
+              onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => { e.preventDefault(); setDragActive(false); const file = e.dataTransfer.files?.[0]; if (file) processFile(file); }}
+            >
+               {isScanning ? (
+                  <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                    <Loader2 className="animate-spin text-violet-600" size={48} />
+                    <h4 className="font-bold text-slate-900 text-lg">AI sedang membaca nota...</h4>
+                    <p className="text-xs font-medium text-slate-500">Mengekstrak data nominal secara pintar menggunakan Vercel AI SDK</p>
                   </div>
-                  <h4 className="text-lg font-bold text-slate-900 mb-2">Upload Nota / Struk</h4>
-                  <p className="text-xs font-medium text-slate-500 mb-6 max-w-xs mx-auto">AI OCR akan mengekstrak otomatis Judul dan Nominal dari bukti struk belanja Anda.</p>
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-violet-600 hover:bg-violet-700 w-full text-white px-6 py-2.5 rounded-xl font-bold shadow-sm transition-colors text-sm"
-                  >
-                    Pilih File Foto
-                  </button>
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
-               </div>
-             )}
+               ) : (
+                 <div className="py-2">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 mx-auto mb-4 shadow-sm border border-slate-100">
+                      <UploadCloud size={28} />
+                    </div>
+                    <h4 className="text-lg font-bold text-slate-900 mb-2">Upload Nota / Struk</h4>
+                    <p className="text-xs font-medium text-slate-500 mb-6 max-w-xs mx-auto">AI OCR akan mengekstrak otomatis Judul dan Nominal dari bukti struk belanja Anda untuk pengajuan.</p>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-violet-600 hover:bg-violet-700 w-full text-white px-6 py-2.5 rounded-xl font-bold shadow-sm transition-colors text-sm"
+                    >
+                      Pilih File Foto
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                 </div>
+               )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Reimbursement Table */}
-        <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col pt-6">
+        <div className={`bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col pt-6 ${role === 'Owner' ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
           <div className="px-6 pb-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-slate-900">Histori Pengeluaran</h3>
@@ -335,10 +333,10 @@ export default function ReimbursementPage() {
                         <div className="flex justify-end gap-1.5">
                           {r.status === 'pending' && role === 'Owner' && (
                             <>
-                              <button onClick={() => handleUpdateStatus(r.id, 'approved')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded bg-white shadow-sm border border-slate-200 hover:border-emerald-200 transition-all" title="Approve">
+                              <button onClick={() => setActionConfirm({ id: r.id, type: 'approved', title: r.title, amount: r.amount, staff: (r as any).staff_name || 'Staf' })} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded bg-white shadow-sm border border-slate-200 hover:border-emerald-200 transition-all" title="Approve">
                                 <Check size={14} strokeWidth={3} />
                               </button>
-                              <button onClick={() => handleUpdateStatus(r.id, 'rejected')} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded bg-white shadow-sm border border-slate-200 hover:border-orange-200 transition-all" title="Reject">
+                              <button onClick={() => setActionConfirm({ id: r.id, type: 'rejected', title: r.title, amount: r.amount, staff: (r as any).staff_name || 'Staf' })} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded bg-white shadow-sm border border-slate-200 hover:border-orange-200 transition-all" title="Reject">
                                 <XSquare size={14} strokeWidth={2} />
                               </button>
                             </>
@@ -462,6 +460,50 @@ export default function ReimbursementPage() {
               </button>
               <button onClick={executeDelete} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-rose-500 hover:bg-rose-600 transition-all shadow-sm">
                 Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Verify Modal */}
+      {actionConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setActionConfirm(null)}></div>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-md relative z-10 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <h3 className="text-xl font-bold text-slate-900 border-b border-slate-100 pb-3">Konfirmasi {actionConfirm.type === 'approved' ? 'Persetujuan' : 'Penolakan'}</h3>
+              
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-sm">
+                <p className="text-slate-700 mb-2">
+                  Apakah Anda yakin ingin {actionConfirm.type === 'approved' ? 'menyetujui' : 'menolak'} pencairan dana untuk:
+                </p>
+                <div className="mt-3 space-y-1">
+                  <div className="flex justify-between"><span className="text-slate-500">Judul</span><span className="font-bold text-slate-900">{actionConfirm.title}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Nominal</span><span className="font-bold text-slate-900">{formatCurrency(actionConfirm.amount)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Diajukan oleh</span><span className="font-bold text-slate-900">{actionConfirm.staff}</span></div>
+                </div>
+              </div>
+
+              {actionConfirm.type === 'rejected' && (
+                <div className="pt-2">
+                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Alasan Penolakan (Opsional)</label>
+                   <textarea 
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition-all text-slate-900 min-h-[80px]"
+                      placeholder="Tuliskan jika ada alasan penolakan..."
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                   />
+                </div>
+              )}
+            </div>
+            <div className={`p-4 border-t border-slate-100 flex gap-3 ${actionConfirm.type === 'approved' ? 'bg-emerald-50/50' : 'bg-rose-50/50'}`}>
+              <button onClick={() => setActionConfirm(null)} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-all shadow-sm">
+                Batal
+              </button>
+              <button onClick={handleUpdateStatus} className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all shadow-sm flex items-center justify-center gap-2 ${actionConfirm.type === 'approved' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}`}>
+                {actionConfirm.type === 'approved' ? <CheckCircle size={16} /> : <XSquare size={16} />}
+                {actionConfirm.type === 'approved' ? 'Setujui Data' : 'Tolak Data'}
               </button>
             </div>
           </div>

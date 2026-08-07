@@ -45,6 +45,7 @@ export default function POSPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [paymentMethod, setPaymentMethod] = useState<'cash'|'qris'|'transfer'>('cash');
+  const [customerName, setCustomerName] = useState("Pelanggan Umum");
   const [receiptData, setReceiptData] = useState<any>(null);
 
   if (role === "Staf") return null;
@@ -100,10 +101,19 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
+    const formattedItems = cart.map(item => ({
+      name: item.product.name,
+      qty: item.quantity,
+      price: item.product.price,
+      subtotal: item.product.price * item.quantity
+    }));
+
     const newTransaction = {
+      customer_name: customerName,
       total_price: Number(subtotal),
       total_profit: Number(totalProfit),
-      payment_method: paymentMethod
+      payment_method: paymentMethod,
+      items: formattedItems
     };
 
     const { data: trxData, error: trxError } = await supabase.from("transactions").insert(newTransaction).select().single();
@@ -114,6 +124,7 @@ export default function POSPage() {
     }
 
     if (trxData) {
+
       const formattedTx = {
         ...trxData,
         total: trxData.total_price || trxData.total,
@@ -143,6 +154,7 @@ export default function POSPage() {
     
     await fetchDependencies();
     setCart([]);
+    setCustomerName("Pelanggan Umum");
   };
 
   const closeReceiptModal = () => {
@@ -340,6 +352,17 @@ export default function POSPage() {
             <div className="flex items-center justify-between text-xs pt-3 border-t border-dashed border-slate-300">
               <span className="text-emerald-600 font-semibold">Estimasi Margin Profit</span>
               <span className="font-bold text-emerald-600">+{formatCurrency(totalProfit)}</span>
+            </div>
+            
+            <div className="pt-3">
+              <span className="block text-xs font-semibold text-slate-500 uppercase mb-2">Nama Pembeli</span>
+              <input 
+                 type="text"
+                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium text-slate-800 bg-white"
+                 value={customerName}
+                 onChange={(e) => setCustomerName(e.target.value)}
+                 placeholder="Cth: Bapak Budi..."
+              />
             </div>
             
             <div className="pt-3">

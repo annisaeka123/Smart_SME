@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package } from "lucide-react";
+import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package, Wallet } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
 
 const links = [
@@ -12,6 +12,7 @@ const links = [
   { href: "/products", label: "Daftar Produk", icon: BarChart2 },
   { href: "/inventory", label: "Bahan Baku", icon: Package },
   { href: "/reimburse", label: "Reimbursements", icon: FolderKanban },
+  { href: "/transactions", label: "Transaksi & Kas", icon: Wallet },
 ];
 
 const bottomLinks = [
