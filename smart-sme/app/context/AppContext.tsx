@@ -57,11 +57,15 @@ export type Transaction = {
 
 export type Reimbursement = {
   id: string;
-  date: string;
-  thumbnail: string;
+  date?: string;
+  created_at?: string;
+  thumbnail?: string;
   title: string;
   amount: number;
-  status: "Pending" | "Approved" | "Rejected";
+  category?: string;
+  notes?: string;
+  receipt_url?: string;
+  status: "pending" | "approved" | "rejected" | "Pending" | "Approved" | "Rejected";
 };
 
 type AppContextType = {
@@ -98,7 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const totalOmzet = transactions.reduce((acc, curr) => acc + curr.total, 0);
   const totalProfit = transactions.reduce((acc, curr) => acc + curr.profit, 0);
-  const totalPengeluaran = reimbursements.filter(r => r.status === "Approved").reduce((acc, curr) => acc + curr.amount, 0);
+  const totalPengeluaran = reimbursements.filter(r => (r.status || "").toLowerCase() === "approved").reduce((acc, curr) => acc + curr.amount, 0);
   const netProfit = totalProfit - totalPengeluaran;
 
   return (
