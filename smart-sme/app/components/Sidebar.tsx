@@ -9,7 +9,7 @@ import { useAppContext } from "../context/AppContext";
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/pos", label: "POS Kasir", icon: Receipt },
-  { href: "/products", label: "Master Produk", icon: BarChart2 },
+  { href: "/products", label: "Daftar Produk", icon: BarChart2 },
   { href: "/inventory", label: "Bahan Baku", icon: Package },
   { href: "/reimburse", label: "Reimbursements", icon: FolderKanban },
 ];

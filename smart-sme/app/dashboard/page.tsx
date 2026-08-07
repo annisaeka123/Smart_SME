@@ -150,7 +150,7 @@ export default function Dashboard() {
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col pt-6 mt-8">
         <div className="px-8 pb-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h3 className="text-xl font-bold text-slate-900">Master Produk</h3>
+            <h3 className="text-xl font-bold text-slate-900">Daftar Produk</h3>
             <p className="text-sm text-slate-500 font-medium mt-1">Manage your inventory and pricing</p>
           </div>
           <div className="flex items-center gap-4">

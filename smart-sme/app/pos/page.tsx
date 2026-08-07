@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext, Product, TransactionItem, getProductStock } from "../context/AppContext";
-import { Search, Plus, Minus, ShoppingCart, Coffee, Box, Trash2, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Minus, ShoppingCart, Coffee, Box, Trash2, CheckCircle2, Pizza, Package } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 export default function POSPage() {
@@ -29,9 +29,11 @@ export default function POSPage() {
       if (prodData) {
         setProducts(prodData.map((p: any) => ({
           ...p,
+          price: p.selling_price || p.price,
+          hpp: p.base_hpp || p.hpp,
           recipe: p.recipes?.map((r: any) => ({
             inventoryId: r.inventory_id || r.inventoryId,
-            qty: r.qty
+            qty: r.quantity_needed || r.qty
           })) || []
         })));
       }
@@ -192,7 +194,14 @@ export default function POSPage() {
               const stock = getProductStock(p, inventory);
               const isAvailable = stock > 0;
               const displayStock = stock === 999 ? '∞' : stock;
-              
+              const pCategory = (p.category || "").toLowerCase();
+              let IconComponent = Package;
+              if (pCategory.includes("makanan") || pCategory.includes("food") || pCategory.includes("snack")) {
+                IconComponent = Pizza;
+              } else if (pCategory.includes("minuman") || pCategory.includes("drink") || pCategory.includes("kopi")) {
+                IconComponent = Coffee;
+              }
+
               return (
               <div 
                 key={p.id} 
@@ -204,7 +213,7 @@ export default function POSPage() {
                 }`}
               >
                 <div className="aspect-square bg-slate-50 rounded-lg flex items-center justify-center mb-4 text-slate-400 group-hover:text-indigo-600 transition-colors border border-slate-100 group-hover:bg-indigo-50">
-                  {p.icon === "Coffee" ? <Coffee size={32} /> : <Box size={32} />}
+                  <IconComponent size={32} />
                 </div>
                 <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{p.name}</h3>
                 <p className="text-slate-600 font-bold text-sm mt-1">{formatCurrency(p.price)}</p>
