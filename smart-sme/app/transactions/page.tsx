@@ -254,18 +254,18 @@ export default function TransactionsPage() {
         
         <div className="overflow-x-auto h-[500px]">
           <table className="w-full text-left">
-            <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
-              <tr className="border-b border-slate-100">
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Waktu</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Keterangan</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Tipe</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest text-right">Nominal</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest text-center">Aksi</th>
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 shadow-sm z-10">
+              <tr>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Waktu</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Keterangan</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tipe</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Nominal</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {mutasi.map((item, i) => (
-                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-4 px-6 text-sm font-semibold text-slate-600">
                     {item.date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' })}
                   </td>

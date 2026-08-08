@@ -462,15 +462,15 @@ export default function Dashboard() {
         
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500">Waktu</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500">Pelanggan</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500">Item Detail</th>
-                <th className="py-3 px-6 text-xs font-semibold text-slate-500 text-right">Total Transaksi</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Waktu</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pelanggan</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Item Detail</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Total Transaksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {recentTransactions.map((tx, i) => {
                 let parsedItems = [];
                 if (typeof tx.items === "string") {
@@ -482,7 +482,7 @@ export default function Dashboard() {
                 const itemsCount = parsedItems.length;
 
                 return (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-6 text-sm font-semibold text-slate-500">
                       {new Date(tx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} 
                       <span className="text-slate-300 mx-2">|</span>

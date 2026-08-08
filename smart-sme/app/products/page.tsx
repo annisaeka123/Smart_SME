@@ -254,16 +254,16 @@ export default function ProductsPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[800px]">
-            <thead>
-              <tr className="bg-white text-xs font-semibold text-slate-500 tracking-wide border-b border-slate-200">
-                <th className="py-4 px-6 font-semibold">Nama Produk</th>
-                <th className="py-4 px-6 font-semibold">HPP</th>
-                <th className="py-4 px-6 font-semibold">Harga Jual</th>
-                <th className="py-4 px-6 font-semibold">Margin</th>
-                <th className="py-4 px-6 text-right font-semibold">Actions</th>
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Produk</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">HPP</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Harga Jual</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Margin</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {filteredProducts.map((p) => {
                 const pMarginRp = p.price - p.hpp;
                 const pMarginPct = p.hpp > 0 ? (pMarginRp / p.hpp) * 100 : 0;
@@ -277,7 +277,7 @@ export default function ProductsPage() {
                 }
 
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-4">
                         <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600 border border-indigo-100 flex items-center justify-center">
