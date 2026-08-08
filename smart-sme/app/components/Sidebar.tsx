@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package, Wallet } from "lucide-react";
+import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package, Wallet, X } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
 import { supabase } from "../../lib/supabase";
 
