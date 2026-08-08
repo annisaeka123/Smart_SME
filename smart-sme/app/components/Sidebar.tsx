@@ -17,8 +17,6 @@ const links = [
 ];
 
 const bottomLinks = [
-  { href: "#", label: "Documentation", icon: FileText, action: null },
-  { href: "#", label: "Settings", icon: Settings, action: null },
   { href: "#", label: "Logout", icon: LogOut, isDanger: true, action: "LOGOUT" },
 ];
 
