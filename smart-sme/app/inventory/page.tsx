@@ -186,17 +186,17 @@ export default function InventoryPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[800px]">
-            <thead>
-              <tr className="bg-white text-xs font-semibold text-slate-500 tracking-wide border-b border-slate-200">
-                <th className="py-4 px-6 font-semibold">Nama Bahan</th>
-                <th className="py-4 px-6 font-semibold">Stok Saat Ini</th>
-                <th className="py-4 px-6 font-semibold">Satuan Beli</th>
-                <th className="py-4 px-6 font-semibold">Harga Beli</th>
-                <th className="py-4 px-6 font-semibold">Cost per Unit Base</th>
-                <th className="py-4 px-6 text-right font-semibold">Actions</th>
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Bahan</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stok Saat Ini</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Satuan Beli</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Harga Beli</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cost per Unit Base</th>
+                <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {filteredInventory.map((item) => {
                 let stockThreshold = 10;
                 if (item.unit === 'kg' || item.unit === 'Liter') stockThreshold = 2;
@@ -213,7 +213,7 @@ export default function InventoryPage() {
                 }
 
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-4">
                         <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600 border border-indigo-100">

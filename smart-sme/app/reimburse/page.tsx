@@ -292,18 +292,18 @@ export default function ReimbursementPage() {
           
           <div className="overflow-x-auto flex-1 h-[400px]">
             <table className="w-full text-left">
-              <thead className="sticky top-0 bg-slate-50">
-                <tr className="border-b border-slate-100">
-                  <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Detail</th>
-                  <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Nominal</th>
-                  <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest">Status / File</th>
-                  <th className="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-widest text-right">Aksi</th>
+              <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 shadow-sm z-10">
+                <tr>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Detail</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nominal</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status / File</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {reimbursements.map((r, i) => {
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-4 px-6">
                         <div className="font-bold text-slate-800 text-sm">{r.title}</div>
                         <div className="text-[11px] font-semibold text-slate-400 mt-1">

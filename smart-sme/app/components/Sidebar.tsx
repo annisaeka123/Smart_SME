@@ -101,12 +101,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean; setIsO
         })}
       </nav>
 
-      <div className="p-4 space-y-1">
-        <button className="w-full bg-violet-600 hover:bg-violet-700 text-white px-4 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 mb-4 shadow-md shadow-violet-600/20 transition-all text-sm">
-          <Plus size={18} />
-          Add New Entry
-        </button>
-        
+      <div className="p-4 space-y-1">        
         {bottomLinks.map((link) => {
           const Icon = link.icon;
           
