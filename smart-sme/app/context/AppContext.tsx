@@ -1,6 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { supabase } from "../../lib/supabase";
+import { Session } from "@supabase/supabase-js";
 
 export type Role = "Owner" | "Kasir" | "Staf";
 
@@ -88,6 +90,9 @@ type AppContextType = {
   totalProfit: number;
   totalPengeluaran: number;
   netProfit: number;
+  session: Session | null;
+  setSession: React.Dispatch<React.SetStateAction<Session | null>>;
+  isLoadingSession: boolean;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -99,6 +104,96 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [reimbursements, setReimbursements] = useState<Reimbursement[]>([]);
   const [inventory, setInventory] = useState<Ingredient[]>([]);
+
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState<boolean>(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchSession = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+          if (mounted) {
+            setSession(null);
+            setIsLoadingSession(false);
+          }
+          return;
+        }
+
+        if (mounted) setSession(session);
+
+        // Fetch or fallback role
+        try {
+          // Attempt fetch from profiles table just in case there is a table constraint
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile?.role && mounted) {
+            setRole(profile.role);
+          } else if (session.user.user_metadata?.role && mounted) {
+            setRole(session.user.user_metadata.role);
+          } else if (mounted) {
+            setRole("Staf");
+          }
+        } catch (err) {
+          // Safety catch: Fallback
+          if (mounted) {
+            if (session.user.user_metadata?.role) setRole(session.user.user_metadata.role);
+            else setRole("Staf");
+          }
+        }
+        
+      } catch (err) {
+        if (mounted) setSession(null);
+      } finally {
+        if (mounted) setIsLoadingSession(false);
+      }
+    };
+
+    fetchSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      if (mounted) setSession(newSession);
+      
+      if (newSession?.user) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', newSession.user.id)
+            .single();
+
+          if (profile?.role && mounted) {
+            setRole(profile.role);
+          } else if (newSession.user.user_metadata?.role && mounted) {
+            setRole(newSession.user.user_metadata.role);
+          } else if (mounted) {
+            setRole("Staf");
+          }
+        } catch (err) {
+          if (mounted) {
+            if (newSession.user.user_metadata?.role) setRole(newSession.user.user_metadata.role);
+            else setRole("Staf");
+          }
+        }
+      } else {
+        if (mounted) setIsLoadingSession(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const totalOmzet = transactions.reduce((acc, curr) => acc + curr.total, 0);
   const totalProfit = transactions.reduce((acc, curr) => acc + curr.profit, 0);
@@ -114,6 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         reimbursements, setReimbursements,
         inventory, setInventory,
         totalOmzet, totalProfit, totalPengeluaran, netProfit,
+        session, setSession, isLoadingSession
       }}
     >
       {children}

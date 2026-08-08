@@ -10,11 +10,7 @@ export default function Header({ toggleSidebar }: { toggleSidebar: () => void })
   const { role, setRole } = useAppContext();
   const pathname = usePathname();
 
-  const toggleRole = () => {
-    if (role === "Owner") setRole("Kasir");
-    else if (role === "Kasir") setRole("Staf");
-    else setRole("Owner");
-  };
+
 
 
   return (
@@ -49,15 +45,7 @@ export default function Header({ toggleSidebar }: { toggleSidebar: () => void })
 
         <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
 
-        <button 
-          onClick={toggleRole}
-          className="hidden md:flex items-center gap-2 group"
-        >
-          <span className="text-sm font-semibold text-slate-700">{role} Mode</span>
-          <div className="flex items-center gap-1 text-violet-600 font-bold text-xs bg-violet-50 px-2 py-1.5 rounded-lg group-hover:bg-violet-100 transition-colors">
-            Switch <ArrowLeftRight size={12} />
-          </div>
-        </button>
+
       </div>
     </header>
   );
