@@ -7,7 +7,7 @@ import { Filter, Download, ClipboardList, Banknote, CheckCircle, Search, UploadC
 import { supabase } from "../../lib/supabase";
 
 export default function ReimbursementPage() {
-  const { reimbursements, setReimbursements, role } = useAppContext();
+  const { reimbursements, setReimbursements, role, session } = useAppContext();
   const router = useRouter();
 
   const fetchExpenses = async () => {
@@ -146,17 +146,26 @@ export default function ReimbursementPage() {
       }
 
       const payload = {
-        title: formData.title,
-        amount: Number(formData.amount),
-        category: formData.category,
-        notes: formData.notes,
-        receipt_url,
-        status: 'pending',
-        type: 'reimbursement' // Menandakan bahwa ini adalah reimbursement staf
+        user_id: session?.user?.id || null,
+        applicant_name: session?.user?.user_metadata?.full_name || "Staf Operasional",
+        title: formData.title || "Pengajuan Reimburse",
+        description: formData.notes || "",
+        amount: Number(formData.amount) || 0,
+        category: formData.category || "Operasional",
+        receipt_url: receipt_url || null,
+        status: "pending",
+        type: 'reimbursement',
+        created_at: new Date().toISOString()
       };
       
-      const { error } = await supabase.from("expenses").insert(payload);
-      if (error) throw new Error("Gagal menyimpan data: " + error.message);
+      const { error } = await supabase.from("expenses").insert([payload]);
+      
+      if (error) {
+        console.error("Supabase Error:", error);
+        alert("Gagal menyimpan (" + error.code + "): " + error.message + " - Mohon periksa kolom tabel!");
+        setIsSubmitting(false);
+        return;
+      }
       
       await fetchExpenses();
       
@@ -295,6 +304,7 @@ export default function ReimbursementPage() {
               <thead className="sticky top-0 bg-slate-50 border-b border-slate-100 shadow-sm z-10">
                 <tr>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Detail</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pengaju</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nominal</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status / File</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
@@ -309,6 +319,11 @@ export default function ReimbursementPage() {
                         <div className="text-[11px] font-semibold text-slate-400 mt-1">
                           {new Date(r.created_at || r.date || "").toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} • {r.category}
                         </div>
+                      </td>
+                      <td className="py-4 px-6">
+                         <div className="text-sm font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block">
+                           {r.applicant_name || 'Staf Operasional'}
+                         </div>
                       </td>
                       <td className="py-4 px-6 font-bold text-slate-900 text-sm">
                         {formatCurrency(r.amount)}
@@ -333,10 +348,10 @@ export default function ReimbursementPage() {
                         <div className="flex justify-end gap-1.5">
                           {r.status === 'pending' && role === 'Owner' && (
                             <>
-                              <button onClick={() => setActionConfirm({ id: r.id, type: 'approved', title: r.title, amount: r.amount, staff: (r as any).staff_name || 'Staf' })} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded bg-white shadow-sm border border-slate-200 hover:border-emerald-200 transition-all" title="Approve">
+                              <button onClick={() => setActionConfirm({ id: r.id, type: 'approved', title: r.title, amount: r.amount, staff: r.applicant_name || 'Staf' })} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded bg-white shadow-sm border border-slate-200 hover:border-emerald-200 transition-all" title="Approve">
                                 <Check size={14} strokeWidth={3} />
                               </button>
-                              <button onClick={() => setActionConfirm({ id: r.id, type: 'rejected', title: r.title, amount: r.amount, staff: (r as any).staff_name || 'Staf' })} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded bg-white shadow-sm border border-slate-200 hover:border-orange-200 transition-all" title="Reject">
+                              <button onClick={() => setActionConfirm({ id: r.id, type: 'rejected', title: r.title, amount: r.amount, staff: r.applicant_name || 'Staf' })} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded bg-white shadow-sm border border-slate-200 hover:border-orange-200 transition-all" title="Reject">
                                 <XSquare size={14} strokeWidth={2} />
                               </button>
                             </>
@@ -353,7 +368,7 @@ export default function ReimbursementPage() {
                 })}
                 {reimbursements.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-slate-500 font-medium text-sm">Belum ada catatan pengeluaran.</td>
+                    <td colSpan={5} className="py-8 text-center text-slate-500 font-medium text-sm">Belum ada catatan pengeluaran.</td>
                   </tr>
                 )}
               </tbody>

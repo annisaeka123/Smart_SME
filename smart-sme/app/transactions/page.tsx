@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "../context/AppContext";
-import { Wallet, Banknote, ArrowDownCircle, ArrowUpCircle, X, CheckCircle, UploadCloud, Loader2, Search } from "lucide-react";
+import { Wallet, Banknote, ArrowDownCircle, ArrowUpCircle, X, CheckCircle, UploadCloud, Loader2, Search, Download } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 export default function TransactionsPage() {
@@ -13,8 +13,18 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<'ALL'|'IN'|'OUT'>('ALL');
-  
+  const [timeFilter, setTimeFilter] = useState<'ALL'|'TODAY'|'WEEK'|'MONTH'|'CUSTOM'>('ALL');
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+
   const [showFormModal, setShowFormModal] = useState(false);
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [incomeData, setIncomeData] = useState({
+    amount: 0,
+    source: "Suntikan Modal Owner",
+    paymentMethod: "Tunai",
+    notes: ""
+  });
   const [isScanning, setIsScanning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -59,10 +69,6 @@ export default function TransactionsPage() {
 
   if (role === "Staf") return null;
 
-  const totalPemasukan = transactions.reduce((acc, curr) => acc + (curr.total_price || 0), 0);
-  const totalPengeluaran = expenses.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-  const saldoBersih = totalPemasukan - totalPengeluaran;
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
   };
@@ -73,9 +79,30 @@ export default function TransactionsPage() {
   ]
   .sort((a, b) => b.date.getTime() - a.date.getTime())
   .filter(item => {
-    if (filterType === 'ALL') return true;
-    return item.type === filterType;
+    if (filterType !== 'ALL' && item.type !== filterType) return false;
+
+    const itemDate = item.date;
+    const today = new Date();
+
+    if (timeFilter === 'TODAY') {
+      if (itemDate.toDateString() !== today.toDateString()) return false;
+    } else if (timeFilter === 'WEEK') {
+      const firstDay = new Date(today);
+      firstDay.setDate(firstDay.getDate() - firstDay.getDay());
+      firstDay.setHours(0,0,0,0);
+      if (itemDate < firstDay) return false;
+    } else if (timeFilter === 'MONTH') {
+      if (itemDate.getMonth() !== today.getMonth() || itemDate.getFullYear() !== today.getFullYear()) return false;
+    } else if (timeFilter === 'CUSTOM' && selectedMonth !== '') {
+      if (itemDate.getMonth() !== parseInt(selectedMonth) || itemDate.getFullYear() !== parseInt(selectedYear)) return false;
+    }
+
+    return true;
   });
+
+  const totalPemasukan = mutasi.filter(m => m.type === 'IN').reduce((acc, curr) => acc + (curr.total_price || curr.total_amount || 0), 0);
+  const totalPengeluaran = mutasi.filter(m => m.type === 'OUT').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const saldoBersih = totalPemasukan - totalPengeluaran;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -185,6 +212,65 @@ export default function TransactionsPage() {
     setIsSubmitting(false);
   };
 
+  const submitIncome = async () => {
+    if (incomeData.amount <= 0) return;
+    setIsSubmitting(true);
+    
+    try {
+      const valAmount = Number(incomeData.amount) || 0;
+      const payload = {
+        customer_name: incomeData.source || "Suntikan Modal Owner",
+        total_amount: valAmount,
+        total_price: valAmount,
+        total_profit: valAmount,
+        payment_method: incomeData.paymentMethod || "Transfer Bank",
+        category: incomeData.source || "Suntikan Modal Owner",
+        items: [],
+        created_at: new Date().toISOString()
+      };
+      
+      const { error } = await supabase.from("transactions").insert([payload]);
+      
+      if (error) {
+        console.error("Supabase Error:", error);
+        alert("Gagal menyimpan (" + error.code + "): " + error.message + " - Mohon periksa kolom tabel!");
+        setIsSubmitting(false);
+        return;
+      }
+      
+      await fetchData();
+      setShowIncomeModal(false);
+      setIncomeData({ amount: 0, source: "Suntikan Modal Owner", paymentMethod: "Tunai", notes: "" });
+    } catch (err: any) {
+      console.error("Catch Error:", err);
+      alert("Terjadi kesalahan jaringan/koneksi Supabase.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const exportToCSV = () => {
+    const headers = ['ID Transaksi', 'Tanggal/Waktu', 'Jenis', 'Kategori/Nama Pelanggan', 'Metode Bayar', 'Total Nominal (Rp)'];
+    const rows = mutasi.map(item => {
+      const id = item.id || '-';
+      const date = item.date.toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+      const type = item.type === 'IN' ? 'Pemasukan' : 'Pengeluaran';
+      const categoryOrName = item.type === 'IN' ? (item.customer_name || 'Pelanggan Umum') : (item.category || '-');
+      const paymentMethod = item.payment_method || (item.type === 'IN' ? 'CASH' : '-');
+      const amount = item.type === 'IN' ? (item.total_price || item.total_amount || 0) : (item.amount || 0);
+
+      return `"${id}","${date}","${type}","${categoryOrName}","${paymentMethod}","${amount}"`;
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Laporan_Mutasi_${new Date().getTime()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const openReceipt = (transaction: any) => {
     setSelectedReceipt(transaction);
   };
@@ -198,9 +284,14 @@ export default function TransactionsPage() {
         </div>
         <div className="flex gap-3">
           {role === 'Owner' && (
-             <button onClick={() => setShowFormModal(true)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm text-sm transition-colors flex items-center gap-2">
-               + Tambah Pengeluaran Langsung
-             </button>
+             <>
+               <button onClick={() => setShowIncomeModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm text-sm transition-colors flex items-center gap-2">
+                 + Pemasukan Manual
+               </button>
+               <button onClick={() => setShowFormModal(true)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm text-sm transition-colors flex items-center gap-2">
+                 + Catat Pengeluaran
+               </button>
+             </>
           )}
         </div>
       </div>
@@ -239,10 +330,45 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col pt-6">
-        <div className="px-6 pb-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50">
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between p-4 mb-2 mt-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg w-fit">
+            <button onClick={() => { setTimeFilter('ALL'); setSelectedMonth(''); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timeFilter === 'ALL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Semua Waktu</button>
+            <button onClick={() => { setTimeFilter('TODAY'); setSelectedMonth(''); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timeFilter === 'TODAY' ? 'bg-white shadow-sm text-violet-600' : 'text-slate-500 hover:text-slate-700'}`}>Hari Ini</button>
+            <button onClick={() => { setTimeFilter('WEEK'); setSelectedMonth(''); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timeFilter === 'WEEK' ? 'bg-white shadow-sm text-violet-600' : 'text-slate-500 hover:text-slate-700'}`}>Minggu Ini</button>
+            <button onClick={() => { setTimeFilter('MONTH'); setSelectedMonth(''); }} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timeFilter === 'MONTH' ? 'bg-white shadow-sm text-violet-600' : 'text-slate-500 hover:text-slate-700'}`}>Bulan Ini</button>
+          </div>
+          
+          <div className="flex gap-2">
+            <select 
+              value={selectedMonth} 
+              onChange={(e) => { setSelectedMonth(e.target.value); if (e.target.value) setTimeFilter('CUSTOM'); else setTimeFilter('ALL'); }}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            >
+              <option value="">Pilih Bulan</option>
+              {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, i) => (
+                <option key={i} value={i}>{m}</option>
+              ))}
+            </select>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => { setSelectedYear(e.target.value); if (selectedMonth) setTimeFilter('CUSTOM'); }}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            >
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <button onClick={exportToCSV} className="flex items-center justify-center sm:justify-start mt-4 sm:mt-0 gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-colors shadow-sm">
+          <Download size={16} /> Export Data CSV
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50">
           <div className="flex gap-2 p-1 bg-slate-200/60 rounded-xl w-fit">
-            <button onClick={() => setFilterType('ALL')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterType === 'ALL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Semua</button>
+            <button onClick={() => setFilterType('ALL')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterType === 'ALL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Semua Tipe</button>
             <button onClick={() => setFilterType('IN')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterType === 'IN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}>Pemasukan</button>
             <button onClick={() => setFilterType('OUT')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filterType === 'OUT' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}>Pengeluaran</button>
           </div>
@@ -274,7 +400,10 @@ export default function TransactionsPage() {
                       {item.type === 'IN' ? (
                         <div>
                            <span className="font-mono text-xs text-slate-500 mr-2">#TRX-{(item.id || '').substring(0,6).toUpperCase()}</span>
-                           <span className="text-emerald-700">Penjualan via {item.payment_method?.toUpperCase() || 'CASH'}</span>
+                           <span className="text-emerald-700">
+                             {getParsedItems(item.items).length === 0 ? 'Pemasukan Manual via ' : 'Penjualan via '}
+                             {item.payment_method?.toUpperCase() || 'CASH'}
+                           </span>
                            <div className="text-[11px] font-semibold text-slate-500 mt-1">
                              <span className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded mr-2">a.n. {item.customer_name || 'Pelanggan Umum'}</span>
                              {getParsedItems(item.items).length > 0 && (
@@ -298,7 +427,7 @@ export default function TransactionsPage() {
                     </span>
                   </td>
                   <td className={`py-4 px-6 text-right font-bold text-sm ${item.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {item.type === 'IN' ? '+' : '-'}{formatCurrency(item.type === 'IN' ? (item.total_price || 0) : (item.amount || 0))}
+                    {item.type === 'IN' ? '+' : '-'}{formatCurrency(item.type === 'IN' ? (item.total_price || item.total_amount || 0) : (item.amount || 0))}
                   </td>
                   <td className="py-4 px-6 text-center">
                     {item.type === 'IN' && (
@@ -318,6 +447,69 @@ export default function TransactionsPage() {
           </table>
         </div>
       </div>
+
+      {showIncomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowIncomeModal(false)}></div>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-900">Form Pemasukan Manual</h3>
+              </div>
+              <button onClick={() => setShowIncomeModal(false)} className="text-emerald-400 hover:text-emerald-900 bg-emerald-100 p-1.5 rounded-lg transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nominal Pemasukan (Rp)</label>
+                <input type="number" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xl font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-slate-900"
+                  value={incomeData.amount || ''} onChange={(e) => setIncomeData({...incomeData, amount: Number(e.target.value)})} placeholder="0" />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Sumber / Kategori</label>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-slate-900 font-medium"
+                  value={incomeData.source} onChange={(e) => setIncomeData({...incomeData, source: e.target.value})}>
+                  <option value="Suntikan Modal Owner">Suntikan Modal Owner</option>
+                  <option value="Investasi">Investasi</option>
+                  <option value="Pinjaman Kas">Pinjaman Kas</option>
+                  <option value="Lain-lain">Lain-lain</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Metode Pembayaran</label>
+                <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-slate-900 font-medium"
+                  value={incomeData.paymentMethod} onChange={(e) => setIncomeData({...incomeData, paymentMethod: e.target.value})}>
+                  <option value="Tunai">Tunai</option>
+                  <option value="Transfer Bank">Transfer Bank</option>
+                  <option value="QRIS">QRIS</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Catatan (Opsional)</label>
+                <textarea className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-slate-900 min-h-[60px]"
+                  value={incomeData.notes} onChange={(e) => setIncomeData({...incomeData, notes: e.target.value})} placeholder="Penjelasan..." />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3 bg-slate-50">
+              <button onClick={() => setShowIncomeModal(false)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-lg font-bold text-sm shadow-sm hover:bg-slate-100 transition-colors">Batal</button>
+              <button 
+                onClick={submitIncome}
+                disabled={isSubmitting || incomeData.amount <= 0}
+                className="flex-[2] flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white rounded-lg font-bold text-sm shadow-sm transition-colors"
+              >
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />} 
+                Simpan Pemasukan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showFormModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

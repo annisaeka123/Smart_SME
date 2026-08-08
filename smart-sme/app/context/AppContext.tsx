@@ -68,6 +68,7 @@ export type Reimbursement = {
   notes?: string;
   receipt_url?: string;
   status: "pending" | "approved" | "rejected" | "Pending" | "Approved" | "Rejected";
+  applicant_name?: string;
 };
 
 type AppContextType = {
