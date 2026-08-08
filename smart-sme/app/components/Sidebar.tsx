@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package, Wallet, X } from "lucide-react";
+import { Store, LayoutDashboard, BarChart2, Users, Receipt, FolderKanban, Plus, FileText, Settings, LogOut, Package, Wallet, X, AlertCircle } from "lucide-react";
 import { useAppContext } from "../context/AppContext";
 import { supabase } from "../../lib/supabase";
 
@@ -33,6 +33,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean; setIsO
     }
   }, [role, pathname, router]);
 
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
@@ -56,7 +58,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean; setIsO
   const userInitials = userName.substring(0, 2).toUpperCase();
 
   return (
-    <div className={`fixed inset-y-0 left-0 bg-white border-r border-slate-100 w-64 flex flex-col transform transition-transform duration-300 z-50 ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static`}>
+    <>
+      <div className={`fixed inset-y-0 left-0 bg-white border-r border-slate-100 w-64 flex flex-col transform transition-transform duration-300 z-50 ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static`}>
       <div className="p-6">
         <div className="flex items-center gap-3">
           <Store className="text-violet-600" size={28} />
@@ -107,7 +110,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean; setIsO
             return (
               <button
                 key={link.label}
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-semibold ${
                   link.isDanger ? "text-rose-500 hover:bg-rose-50" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                 }`}
@@ -132,6 +135,37 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean; setIsO
           );
         })}
       </div>
-    </div>
+      </div>
+      
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">Konfirmasi Keluar</h2>
+              <p className="text-slate-500 text-sm">
+                Apakah Anda yakin ingin keluar? Anda harus login kembali untuk masuk.
+              </p>
+            </div>
+            <div className="flex border-t border-slate-100">
+              <button 
+                onClick={() => setShowLogoutModal(false)} 
+                className="flex-1 py-4 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleLogout} 
+                className="flex-1 py-4 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors border-l border-slate-100"
+              >
+                Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
