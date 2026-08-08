@@ -229,8 +229,8 @@ export default function TransactionsPage() {
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between">
           <div>
              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Saldo Kas Bersih</p>
-             <h3 className={`text-3xl font-extrabold ${saldoBersih >= 0 ? 'text-violet-600' : 'text-rose-500'}`}>
-               {formatCurrency(Math.abs(saldoBersih))}
+             <h3 className={`text-3xl font-extrabold ${saldoBersih >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+               {formatCurrency(saldoBersih)}
              </h3>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700">
